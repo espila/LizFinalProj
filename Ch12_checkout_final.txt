@@ -1,0 +1,209 @@
+Let’s take stock. So far, we’ve put together a basic product administration
+system, we’ve implemented a catalog, and we have a pretty spiffy-looking
+shopping cart. So, now we need to let the buyer actually purchase the contents
+of that cart. Let’s implement the checkout function.
+
+We’re not going to go overboard here. For now, all we’ll do is capture the
+customer’s contact details and payment option. Using these, we’ll construct
+an order in the database. Along the way, we’ll be looking a bit more at models,
+validation, and form handling.
+
+What is an order?
+
+An order is a set of line items, along with details of the purchase transaction.
+Our cart already contains line_items, so all we need to do is add an order_id column
+to the line_items table and create an orders table based on the Initial guess
+at application data diagram on page 69, combined with a brief chat with our
+customer.
+
+First we create the order model and update the line_items table:
+
+Scaffold the new Order data model
+
+depot> rails generate scaffold Order name address:text email pay_type:integer
+
+Add an order reference to the line_items table
+
+depot> bin/rails generate migration add_order_to_line_item order:references
+
+Rails can keep track of which values are used for which payment type through the use 
+of enum declarations placed in the model class:
+
+rails50/depot_o/app/models/order.rb
+
+class Order < ApplicationRecord
+  enum pay_type: {
+    "Check" => 0,
+    "Credit card" => 1,
+    "Purchase order" => 2
+  }
+end
+
+Now run the db migration
+
+depot> rails db:migrate
+
+Now that we have our tables and our models as we need them, we can start
+the checkout process. First, we need to add a Checkout button to the shopping
+cart. Because it’ll create a new order, we’ll link it back to a new action in our
+order controller:
+
+rails50/depot_o/app/views/carts/show.html.erb
+
+#...
+
+<%= button_to "Checkout", new_order_path, method: :get %>
+
+<%= button_to 'Empty cart', cart, method: :delete, data: { confirm: 'Are you sure?' } %>
+
+#...
+
+The first thing we want to do is check to make sure that there’s something
+in the cart. This requires us to have access to the cart. Planning ahead, we’ll
+also need this when we create an order: (so let's modify the controller)
+
+rails50/depot_o/app/controllers/orders_controller.rb
+
+class OrdersController < ApplicationController
+include CurrentCart
+before_action :set_cart, only: [:new, :create]
+# key new method os the ensure_cart_isnt_empty 
+before_action :ensure_cart_isnt_empty, only: :new
+before_action :set_order, only: [:show, :edit, :update, :destroy]
+
+# GET /orders
+#...
+
+ private
+ def ensure_cart_isnt_empty
+ if @cart.line_items.empty?
+ redirect_to store_index_url, notice: 'Your cart is empty'
+ end
+ end
+end
+
+If nothing is in the cart, we redirect the user back to the storefront, provide
+a notice of what we did, and return immediately. This prevents people from
+navigating directly to the checkout option and creating empty orders. 
+
+Note that we tucked this handling of an exception case into a before_action method.
+This enables the main line processing logic to remain clean and simple.
+
+Now, because we BootStrapped the scaffold, we should be nearly done, so try out the process
+
+depot> rails s -b $IP -p $PORT
+
+Missing any data items? Can we see an order_id anywhere? Do we need to?
+
+Reformat the form field to use the dropdown enum list:
+
+app/view/orders/_form.html.erb
+
+<div class="form-group">
+    <%= f.label :pay_type %>
+    
+    <%= f.select :pay_type, Order.pay_types.keys, prompt: 'Select a payment method',  class:"form-control"   %>
+  </div>
+
+
+Finishing Steps - Validations & populating the order with shopping cart data
+
+Before we move on, let’s finish the new action by adding some validation. 
+We’ll change the Order model to verify that the customer enters data for all the input fields. 
+We’ll also validate that the payment type is one of the accepted values:
+
+.../app/models/order.rb 
+
+class Order < ApplicationRecord 
+# ... 
+validates :name, :address, :email, presence: true
+validates :pay_type, inclusion: pay_types.keys
+end
+
+Capturing the Order Details 
+
+Let’s implement the create() action in the controller. 
+This method has to do the following: 
+1. Capture the values from the form to populate a new Order model object. 
+2. Add the line items from our cart to that order. 
+3. Validate and save the order. If this fails, display the appropriate messages,
+   and let the user correct any problems. 
+4. Once the order is successfully saved, delete the cart, redisplay the catalog page,
+   and display a message confirming that the order has been placed.
+   
+We define the relationships themselves, first from the line item to the order:
+
+.../app/models/line_item.rb
+
+class LineItem < ApplicationRecord 
+  belongs_to :order, optional: true
+  belongs_to :product, optional: true
+  
+  belongs_to :cart 
+
+  def total_price 
+  product.price * quantity 
+  end 
+end
+
+
+We define the relationship from the order to the line item; 
+including the requirement to delete all line_items when order is 'destroyed'
+
+.../depot_o/app/models/order.rb 
+
+class Order < ApplicationRecord 
+has_many :line_items, dependent: :destroy
+
+# ... 
+
+end 
+
+
+The create The method ends up looking something like this:
+rails50/depot_o/app/controllers/orders_controller.rb 
+
+#...
+
+def create 
+@order = Order.new(order_params) 
+@order.add_line_items_from_cart(@cart)
+  respond_to do |format| 
+    if @order.save 
+    Cart.destroy(session[:cart_id])
+    session[:cart_id] = nil
+    format.html { redirect_to store_index_url, notice:'Thank you for your order.' }
+    format.json { render :show, status: :created, location: @order } 
+    else 
+    format.html { render :new } 
+    format.json { render json: @order.errors, status: :unprocessable_entity } 
+    end 
+  end 
+end
+
+#...
+
+In the create action, we assumed that the order object contains the 
+add_line_items_from_cart() method, so let’s implement that method now:
+
+.../depot_p/app/models/order.rb 
+
+class Order < ApplicationRecord 
+
+# ... 
+
+  def add_line_items_from_cart(cart)
+    cart.line_items.each do |item|
+    item.cart_id = nil
+    line_items << item
+    end
+  end
+
+end 
+
+
+OK, try it out now and see if you can create an order and then go back to the catalog.
+
+Look at an orders show to see what might be in an order...
+
+Can also use the dbconsole to check the status of data...

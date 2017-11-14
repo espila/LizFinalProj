@@ -1,0 +1,107 @@
+1. create a quantity column in line_items table
+
+rails generate migration add_quantity_to_line_items quantity:integer
+
+
+2. modify migration
+
+from
+
+class AddQuantityToLineItems < ActiveRecord::Migration[5.0]
+  def change
+    add_column :line_items, :quantity, :integer
+  end
+end
+
+to
+
+class AddQuantityToLineItems < ActiveRecord::Migration[5.0]
+  def change
+    add_column :line_items, :quantity, :integer, default: 1
+  end
+end
+
+
+3. rails db:migrate
+
+
+4. extend app/models/cart.rb to include an add_product method
+
+from
+
+class Cart < ApplicationRecord
+  has_many :line_items, dependent: :destroy
+end
+
+to
+
+class Cart < ApplicationRecord
+  has_many :line_items, dependent: :destroy
+
+  def add_product(product)
+    current_item = line_items.find_by(product_id: product.id)
+    if current_item
+      current_item.quantity += 1
+    else
+      current_item = line_items.build(product_id: product.id)
+    end
+    current_item
+  end
+end
+
+
+5. enhance /app/controllers/line_items_controller.rb to use this method for @line_item
+
+from
+
+#...
+
+  # POST /line_items
+  # POST /line_items.json
+  def create
+    # chapter 9 p. 124
+    product = Product.find(params[:product_id])
+    #product = Product.find(params[:id]) doesn't work from classic 'edit' menu
+    @line_item = @cart.line_items.build(product: product)
+    
+    respond_to do |format|
+      if @line_item.save
+ #...
+ 
+ to 
+ 
+ #...
+ def create
+     product = Product.find(params[:product_id])
+     @line_item = @cart.add_product(product)
+ 
+     respond_to do |format|
+      if @line_item.save
+ #...
+
+
+6. modify /app/views/carts/show.html.erb to show the quantity values
+
+from
+
+<ul>
+    <% @cart.line_items.each do |item| %>
+    <li><%= item.product.title %></li>
+  <% end %>
+</ul>
+
+to 
+
+<ul>
+    <% @cart.line_items.each do |item| %>
+    <li><%= item.quantity %> &times; <%= item.product.title %></li>
+  <% end %>
+</ul>
+
+7. run server to see if this all works or what... add to a cart...
+
+rails s -b $IP -p $PORT
+
+from now on, when you shop, if you add duplicate items, it will automatically add to any exiting items
+
+
