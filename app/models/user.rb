@@ -5,8 +5,8 @@ class User < ApplicationRecord
   has_secure_password
 
 
-#class Error < StandardError
-#end
+ class Error < StandardError
+ end
 
 private
 

@@ -1,4 +1,6 @@
 class SessionsController < ApplicationController
+  skip_before_action :authorize
+  
   def new
   end
 
@@ -15,7 +17,7 @@ class SessionsController < ApplicationController
       session[:user_id] = user.id
       redirect_to admin_index_url #which url you use depends upon routes.rb
     else
-      redirect_to login_url, alert: "Invalid user/password combination, methinks."
+      redirect_to login_url, notice: "Invalid user/password combination, methinks."
     end
   end
 
