@@ -1,14 +1,25 @@
-<p id="notice"><%= notice %></p>
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 
-<h1>The Bestest Store Ever</h1>
+<div class="w3-container w3-margin">
+
+  <div class="w3-panel w3-pink">
+ <h1 class="w3-wide"><i class="material-icons">shopping_cart</i> LIZ SPILA'S STORE</h1>
+
+</div>
+  </head>
+  
 <%= link_to 'Show My Cart', cart_path(@cart) , class:"w3-button w3-light-gray w3-border" %>
 
+  <div class="w3-container w3-margin">
 <table class="w3-table-all">
   <thead>
     <tr>
-      <th>Title</th>
+      <th>Item</th>
       <th>Description</th>
-      <th>Image url</th>
+      <th>Image</th>
     </tr>
   </thead>
 
@@ -25,5 +36,5 @@
     <% end %>
   </tbody>
 </table>
-
+  </div>
 <br>
